@@ -1,0 +1,5 @@
+{
+  "name": "Affiliate Link Bot",
+  "description": "Telegram bot to automatically generate affiliate links from marketplace URLs.",
+  "requestFramePermissions": []
+}

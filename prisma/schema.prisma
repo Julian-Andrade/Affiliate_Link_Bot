@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model LinkHistory {
+  id             String   @id @default(uuid())
+  originalUrl    String
+  affiliateUrl   String
+  marketplace    String
+  telegramUserId String
+  createdAt      DateTime @default(now())
+}
+
+model BotConfig {
+  id            String   @id @default(uuid())
+  layoutConfig  Json
+  updatedAt     DateTime @updatedAt
+}
