@@ -6,7 +6,13 @@ export class MercadoLivreProvider implements MarketplaceProvider {
   }
 
   canHandle(url: string): boolean {
-    return url.includes('mercadolivre.com.br') || url.includes('mlb.com.br');
+    try {
+      const parsedUrl = new URL(url);
+      const host = parsedUrl.hostname;
+      return host.includes('mercadolivre.com.br') || host.includes('mlb.com.br');
+    } catch {
+      return false;
+    }
   }
 
   async processUrl(url: string): Promise<ProductInfo> {

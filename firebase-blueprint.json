@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user data and bot configuration",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User's email address"
+        },
+        "telegramBotToken": {
+          "type": "string",
+          "description": "Telegram Bot Token"
+        },
+        "shopeeAppId": {
+          "type": "string",
+          "description": "Shopee App ID"
+        },
+        "shopeeAppSecret": {
+          "type": "string",
+          "description": "Shopee App Secret"
+        },
+        "layoutConfig": {
+          "type": "string",
+          "description": "JSON stringified layout configuration"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "LinkHistory": {
+      "title": "Link History",
+      "description": "Stores generated affiliate links",
+      "type": "object",
+      "properties": {
+        "originalUrl": {
+          "type": "string"
+        },
+        "affiliateUrl": {
+          "type": "string"
+        },
+        "marketplace": {
+          "type": "string"
+        },
+        "telegramUserId": {
+          "type": "string"
+        },
+        "telegramUsername": {
+          "type": "string"
+        },
+        "telegramName": {
+          "type": "string"
+        },
+        "productTitle": {
+          "type": "string"
+        },
+        "productImage": {
+          "type": "string"
+        },
+        "productPrice": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["originalUrl", "affiliateUrl", "marketplace", "telegramUserId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles and bot configurations"
+    },
+    "users/{userId}/linkHistory/{historyId}": {
+      "schema": "LinkHistory",
+      "description": "History of generated links for a specific user's bot"
+    }
+  }
+}

@@ -6,7 +6,13 @@ export class AmazonProvider implements MarketplaceProvider {
   }
 
   canHandle(url: string): boolean {
-    return url.includes('amazon.com.br') || url.includes('amzn.to');
+    try {
+      const parsedUrl = new URL(url);
+      const host = parsedUrl.hostname;
+      return host.includes('amazon.com.br') || host.includes('amzn.to');
+    } catch {
+      return false;
+    }
   }
 
   async processUrl(url: string): Promise<ProductInfo> {

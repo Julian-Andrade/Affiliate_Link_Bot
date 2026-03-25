@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - email: string (required)
+    //   - telegramBotToken: string (optional)
+    //   - shopeeAppId: string (optional)
+    //   - shopeeAppSecret: string (optional)
+    //   - layoutConfig: string (optional)
+    //   - createdAt: timestamp (required, immutable)
+    //   - updatedAt: timestamp (optional)
+    //
+    // Collection: users/{userId}/linkHistory
+    // Document ID: {historyId}
+    // Fields:
+    //   - originalUrl: string (required)
+    //   - affiliateUrl: string (required)
+    //   - marketplace: string (required)
+    //   - telegramUserId: string (required)
+    //   - telegramUsername: string (optional)
+    //   - telegramName: string (optional)
+    //   - productTitle: string (optional)
+    //   - productImage: string (optional)
+    //   - productPrice: number (optional)
+    //   - createdAt: timestamp (required, immutable)
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser() {
+      let data = request.resource.data;
+      return hasRequiredFields(['email', 'createdAt']) &&
+             hasOnlyAllowedFields(['email', 'telegramBotToken', 'shopeeAppId', 'shopeeAppSecret', 'layoutConfig', 'createdAt', 'updatedAt']) &&
+             isValidEmail(data.email) &&
+             data.createdAt is timestamp &&
+             isValidOptionalString('telegramBotToken', 1, 255) &&
+             isValidOptionalString('shopeeAppId', 1, 255) &&
+             isValidOptionalString('shopeeAppSecret', 1, 255) &&
+             isValidOptionalString('layoutConfig', 1, 10000) &&
+             (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
+    }
+
+    function isValidLinkHistory() {
+      let data = request.resource.data;
+      return hasRequiredFields(['originalUrl', 'affiliateUrl', 'marketplace', 'telegramUserId', 'createdAt']) &&
+             hasOnlyAllowedFields(['originalUrl', 'affiliateUrl', 'marketplace', 'telegramUserId', 'telegramUsername', 'telegramName', 'productTitle', 'productImage', 'productPrice', 'createdAt']) &&
+             data.originalUrl is string && data.originalUrl.size() > 0 && data.originalUrl.size() < 2000 &&
+             data.affiliateUrl is string && data.affiliateUrl.size() > 0 && data.affiliateUrl.size() < 2000 &&
+             data.marketplace is string && data.marketplace.size() > 0 && data.marketplace.size() < 50 &&
+             data.telegramUserId is string && data.telegramUserId.size() > 0 && data.telegramUserId.size() < 50 &&
+             data.createdAt is timestamp &&
+             isValidOptionalString('telegramUsername', 1, 100) &&
+             isValidOptionalString('telegramName', 1, 100) &&
+             isValidOptionalString('productTitle', 1, 500) &&
+             isValidOptionalString('productImage', 1, 2000) &&
+             (!( 'productPrice' in data ) || data.productPrice is number);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser();
+      allow update: if isOwner(userId) && isValidUser() && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isOwner(userId);
+
+      match /linkHistory/{historyId} {
+        allow read: if isOwner(userId);
+        // Allow creating/updating history items. Note: the webhook (admin SDK) will bypass these rules,
+        // but if the client creates them, they must be valid.
+        allow create: if isOwner(userId) && isValidLinkHistory();
+        allow update: if isOwner(userId) && isValidLinkHistory() && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

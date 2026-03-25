@@ -8,13 +8,27 @@ export class ShopeeProvider implements MarketplaceProvider {
   }
 
   canHandle(url: string): boolean {
-    return url.includes('shopee.com.br') || url.includes('shp.ee') || url.includes('shope.ee');
+    try {
+      const parsedUrl = new URL(url);
+      const host = parsedUrl.hostname;
+      return host.includes('shopee.com.br') || host.includes('shp.ee') || host.includes('shope.ee');
+    } catch {
+      return false;
+    }
   }
 
-  async processUrl(url: string): Promise<ProductInfo> {
+  async processUrl(url: string, credentials?: any): Promise<ProductInfo> {
     // 1. Resolve URL
-    const response = await fetch(url, { redirect: 'follow' });
-    const finalUrl = response.url;
+    let finalUrl = url;
+    try {
+      const response = await fetch(url, { redirect: 'follow' });
+      if (!response.ok) {
+        throw new Error(`Servidor retornou status ${response.status}`);
+      }
+      finalUrl = response.url;
+    } catch (e: any) {
+      throw new Error(`Não foi possível acessar o link fornecido. Verifique se a URL está correta. Detalhes: ${e.message}`);
+    }
 
     // 2. Extract IDs
     let shopId, itemId;
@@ -36,8 +50,11 @@ export class ShopeeProvider implements MarketplaceProvider {
     let originalPrice = 0;
     let salesCount = 0;
 
+    const appId = credentials?.shopeeAppId || env.SHOPEE_APP_ID;
+    const appSecret = credentials?.shopeeAppSecret || env.SHOPEE_APP_SECRET;
+
     // 3. Fetch Product Info
-    if (shopId && itemId && env.SHOPEE_APP_ID && env.SHOPEE_APP_SECRET) {
+    if (shopId && itemId && appId && appSecret) {
       try {
         const graphqlUrl = 'https://open-api.affiliate.shopee.com.br/graphql';
         const payload = {
@@ -58,21 +75,23 @@ export class ShopeeProvider implements MarketplaceProvider {
         
         const timestamp = Math.floor(Date.now() / 1000).toString();
         const payloadStr = JSON.stringify(payload);
-        const factor = env.SHOPEE_APP_ID + timestamp + payloadStr + env.SHOPEE_APP_SECRET;
+        const factor = appId + timestamp + payloadStr + appSecret;
         const signature = crypto.createHash('sha256').update(factor).digest('hex');
 
         const apiRes = await fetch(graphqlUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `SHA256 Credential=${env.SHOPEE_APP_ID}, Timestamp=${timestamp}, Signature=${signature}`
+            'Authorization': `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`
           },
           body: payloadStr
         });
         
         const apiData: any = await apiRes.json();
         
-        if (apiData?.data?.productOfferV2?.nodes?.length > 0) {
+        if (apiData?.errors) {
+          console.warn('Aviso: API da Shopee retornou erro ao buscar dados do produto:', apiData.errors);
+        } else if (apiData?.data?.productOfferV2?.nodes?.length > 0) {
           const item = apiData.data.productOfferV2.nodes[0];
           title = item.productName || title;
           imageUrl = item.imageUrl || imageUrl;
@@ -94,7 +113,7 @@ export class ShopeeProvider implements MarketplaceProvider {
     // 4. Generate Affiliate Link
     let affiliateUrl = finalUrl;
     try {
-      if (env.SHOPEE_APP_ID && env.SHOPEE_APP_SECRET) {
+      if (appId && appSecret) {
         const graphqlUrl = 'https://open-api.affiliate.shopee.com.br/graphql';
         const payload = {
           query: `mutation generateShortLink($input: ShortLinkInput!) { generateShortLink(input: $input) { shortLink } }`,
@@ -103,31 +122,38 @@ export class ShopeeProvider implements MarketplaceProvider {
         
         const timestamp = Math.floor(Date.now() / 1000).toString();
         const payloadStr = JSON.stringify(payload);
-        const factor = env.SHOPEE_APP_ID + timestamp + payloadStr + env.SHOPEE_APP_SECRET;
+        const factor = appId + timestamp + payloadStr + appSecret;
         const signature = crypto.createHash('sha256').update(factor).digest('hex');
 
         const linkRes = await fetch(graphqlUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `SHA256 Credential=${env.SHOPEE_APP_ID}, Timestamp=${timestamp}, Signature=${signature}`
+            'Authorization': `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`
           },
           body: payloadStr
         });
         
         const linkData: any = await linkRes.json();
+        
+        if (linkData?.errors) {
+          throw new Error(`A API da Shopee recusou a geração do link: ${linkData.errors[0]?.message || 'Erro desconhecido'}`);
+        }
+        
         if (linkData?.data?.generateShortLink?.shortLink) {
           affiliateUrl = linkData.data.generateShortLink.shortLink;
         } else {
-          console.error('Erro na API da Shopee:', linkData);
-          affiliateUrl = `${finalUrl}?custom_link=${env.SHOPEE_AFFILIATE_ID || 'fallback'}`;
+          throw new Error('A API da Shopee não retornou o link encurtado de afiliado.');
         }
       } else {
-        affiliateUrl = `${finalUrl}?custom_link=${env.SHOPEE_AFFILIATE_ID || 'fallback'}`;
+        if (!env.SHOPEE_AFFILIATE_ID) {
+          throw new Error('Credenciais da Shopee (App ID/Secret ou Affiliate ID) não estão configuradas no sistema.');
+        }
+        affiliateUrl = `${finalUrl}?custom_link=${env.SHOPEE_AFFILIATE_ID}`;
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Erro ao gerar link de afiliado:', e);
-      affiliateUrl = `${finalUrl}?custom_link=${env.SHOPEE_AFFILIATE_ID || 'fallback'}`;
+      throw new Error(`Falha ao gerar link de afiliado: ${e.message}`);
     }
 
     return {

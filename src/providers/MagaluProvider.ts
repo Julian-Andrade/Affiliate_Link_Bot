@@ -6,7 +6,13 @@ export class MagaluProvider implements MarketplaceProvider {
   }
 
   canHandle(url: string): boolean {
-    return url.includes('magazineluiza.com.br') || url.includes('magalu.com');
+    try {
+      const parsedUrl = new URL(url);
+      const host = parsedUrl.hostname;
+      return host.includes('magazineluiza.com.br') || host.includes('magalu.com');
+    } catch {
+      return false;
+    }
   }
 
   async processUrl(url: string): Promise<ProductInfo> {

@@ -8,7 +8,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  serverExternalPackages: ['@prisma/client'],
   serverActions: {
     allowedOrigins: ['localhost:3000', '*.run.app'],
   },

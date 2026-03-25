@@ -10,5 +10,5 @@ export interface ProductInfo {
 export interface MarketplaceProvider {
   getMarketplaceName(): string;
   canHandle(url: string): boolean;
-  processUrl(url: string): Promise<ProductInfo>;
+  processUrl(url: string, credentials?: any): Promise<ProductInfo>;
 }

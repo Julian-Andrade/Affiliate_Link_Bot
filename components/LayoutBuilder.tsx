@@ -18,8 +18,10 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Save, Info } from 'lucide-react';
-import { updateBotConfig } from '../app/actions';
+import { GripVertical, Save, Info, Check } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from './AuthProvider';
 
 export type BlockType = 'title' | 'customCta' | 'customText' | 'promoPrice' | 'originalPrice' | 'affiliateLink' | 'coupon' | 'promoWarning' | 'salesCount';
 
@@ -98,11 +100,19 @@ function SortableItem({ block, onChange }: SortableItemProps) {
 export default function LayoutBuilder({ initialLayout }: { initialLayout: LayoutBlock[] }) {
   const [blocks, setBlocks] = useState<LayoutBlock[]>(initialLayout.length > 0 ? initialLayout : defaultLayout);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
   const [isMounted, setIsMounted] = useState(false);
+  const { user } = useAuth();
 
   React.useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  React.useEffect(() => {
+    if (initialLayout.length > 0) {
+      setBlocks(initialLayout);
+    }
+  }, [initialLayout]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -130,18 +140,19 @@ export default function LayoutBuilder({ initialLayout }: { initialLayout: Layout
   };
 
   const handleSave = async () => {
+    if (!user) return;
     setIsSaving(true);
+    setSaveMessage('');
     try {
-      const formData = new FormData();
-      formData.append('layoutConfig', JSON.stringify(blocks));
-      const response = await updateBotConfig(formData);
-      if (response && !response.success) {
-        throw new Error(response.error || 'Erro desconhecido');
-      }
-      window.alert('Configurações salvas com sucesso!');
+      await setDoc(doc(db, 'users', user.uid), {
+        layoutConfig: JSON.stringify(blocks),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      setSaveMessage('Layout salvo com sucesso!');
+      setTimeout(() => setSaveMessage(''), 3000);
     } catch (error) {
       console.error(error);
-      window.alert('Erro ao salvar configurações.');
+      setSaveMessage('Erro ao salvar layout.');
     } finally {
       setIsSaving(false);
     }
@@ -182,14 +193,21 @@ export default function LayoutBuilder({ initialLayout }: { initialLayout: Layout
           <h2 className="text-xl font-semibold text-gray-900">Definição de Layout</h2>
           <p className="text-sm text-gray-500 mt-1">Personalize as informações que aparecerão nas mensagens geradas.</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
-        >
-          <Save className="w-4 h-4" />
-          {isSaving ? 'Salvando...' : 'Salvar Configurações'}
-        </button>
+        <div className="flex flex-col items-end gap-2">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            {isSaving ? 'Salvando...' : 'Salvar Layout'}
+          </button>
+          {saveMessage && (
+            <span className={`text-sm ${saveMessage.includes('Erro') ? 'text-red-600' : 'text-green-600'}`}>
+              {saveMessage}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2">

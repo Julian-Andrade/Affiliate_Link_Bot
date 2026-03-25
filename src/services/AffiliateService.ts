@@ -11,27 +11,41 @@ export class AffiliateService {
     this.historyService = new HistoryService();
   }
 
-  async processUrl(url: string, telegramUserId: string): Promise<ProductInfo> {
+  async processUrl(
+    url: string,
+    userInfo: { id: string; username?: string; firstName?: string; lastName?: string },
+    userId?: string,
+    credentials?: any
+  ): Promise<ProductInfo> {
     const provider = this.detector.detect(url);
 
     if (!provider) {
-      throw new Error('Marketplace não suportado ou URL inválida.');
+      throw new Error('Nenhuma URL válida encontrada ou suportada. Verifique a URL e tente novamente.');
     }
 
     try {
-      const productInfo = await provider.processUrl(url);
+      const productInfo = await provider.processUrl(url, credentials);
       
+      const fullName = [userInfo.firstName, userInfo.lastName].filter(Boolean).join(' ');
+
       // Salva o histórico de forma assíncrona (fire and forget)
-      this.historyService.saveHistory({
-        originalUrl: url,
-        affiliateUrl: productInfo.affiliateUrl,
-        marketplace: provider.getMarketplaceName(),
-        telegramUserId,
-      });
+      if (userId) {
+        this.historyService.saveHistory(userId, {
+          originalUrl: url,
+          affiliateUrl: productInfo.affiliateUrl,
+          marketplace: provider.getMarketplaceName(),
+          telegramUserId: userInfo.id,
+          telegramUsername: userInfo.username,
+          telegramName: fullName || undefined,
+          productTitle: productInfo.title,
+          productImage: productInfo.imageUrl,
+          productPrice: productInfo.price,
+        });
+      }
 
       return productInfo;
     } catch (error: any) {
-      throw new Error(`Erro ao processar ${provider.getMarketplaceName()}: ${error.message}`);
+      throw new Error(`[${provider.getMarketplaceName()}] ${error.message}`);
     }
   }
 }

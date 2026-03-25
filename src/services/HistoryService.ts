@@ -1,17 +1,21 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { adminDb } from '../../lib/firebase-admin';
 
 export class HistoryService {
-  async saveHistory(data: {
+  async saveHistory(userId: string, data: {
     originalUrl: string;
     affiliateUrl: string;
     marketplace: string;
     telegramUserId: string;
+    telegramUsername?: string;
+    telegramName?: string;
+    productTitle?: string;
+    productImage?: string;
+    productPrice?: number;
   }) {
     try {
-      await prisma.linkHistory.create({
-        data,
+      await adminDb.collection('users').doc(userId).collection('linkHistory').add({
+        ...data,
+        createdAt: new Date(),
       });
     } catch (error) {
       console.error('Erro ao salvar histórico no banco de dados:', error);
