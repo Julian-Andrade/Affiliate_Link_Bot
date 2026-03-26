@@ -1,6 +1,5 @@
 import { MarketplaceProvider, ProductInfo } from './MarketplaceProvider';
-import { env } from '../config/env';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 export class ShopeeProvider implements MarketplaceProvider {
   getMarketplaceName(): string {
@@ -50,8 +49,8 @@ export class ShopeeProvider implements MarketplaceProvider {
     let originalPrice = 0;
     let salesCount = 0;
 
-    const appId = credentials?.shopeeAppId || env.SHOPEE_APP_ID;
-    const appSecret = credentials?.shopeeAppSecret || env.SHOPEE_APP_SECRET;
+    const appId = credentials?.shopeeAppId || process.env.SHOPEE_APP_ID;
+    const appSecret = credentials?.shopeeAppSecret || process.env.SHOPEE_APP_SECRET;
 
     // 3. Fetch Product Info
     if (shopId && itemId && appId && appSecret) {
@@ -146,10 +145,10 @@ export class ShopeeProvider implements MarketplaceProvider {
           throw new Error('A API da Shopee não retornou o link encurtado de afiliado.');
         }
       } else {
-        if (!env.SHOPEE_AFFILIATE_ID) {
+        if (!process.env.SHOPEE_AFFILIATE_ID) {
           throw new Error('Credenciais da Shopee (App ID/Secret ou Affiliate ID) não estão configuradas no sistema.');
         }
-        affiliateUrl = `${finalUrl}?custom_link=${env.SHOPEE_AFFILIATE_ID}`;
+        affiliateUrl = `${finalUrl}?custom_link=${process.env.SHOPEE_AFFILIATE_ID}`;
       }
     } catch (e: any) {
       console.error('Erro ao gerar link de afiliado:', e);

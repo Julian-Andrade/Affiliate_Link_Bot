@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, writeBatch } from 'firebase/firestore';
 import { useAuth } from './AuthProvider';
+import { toast } from 'sonner';
 
 export default function ClearAllHistoryButton() {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -22,8 +23,26 @@ export default function ClearAllHistoryButton() {
         batch.delete(doc.ref);
       });
       await batch.commit();
+
+      // Also attempt to clear public store products
+      try {
+        const publicProductsRef = collection(db, 'publicStores', user.uid, 'products');
+        const publicSnapshot = await getDocs(publicProductsRef);
+        if (!publicSnapshot.empty) {
+          const publicBatch = writeBatch(db);
+          publicSnapshot.docs.forEach((doc) => {
+            publicBatch.delete(doc.ref);
+          });
+          await publicBatch.commit();
+        }
+      } catch (e) {
+        // Ignore if it fails
+      }
+
+      toast.success('Histórico limpo com sucesso!');
     } catch (error: any) {
       console.error(error.message || 'Erro ao limpar histórico');
+      toast.error('Erro ao limpar histórico.');
     }
     setIsDeleting(false);
     setShowConfirm(false);

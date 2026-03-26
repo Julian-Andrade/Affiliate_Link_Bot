@@ -10,9 +10,13 @@
           "format": "email",
           "description": "User's email address"
         },
-        "telegramBotToken": {
+        "activationToken": {
           "type": "string",
-          "description": "Telegram Bot Token"
+          "description": "Token used to activate the bot"
+        },
+        "telegramChatId": {
+          "type": "string",
+          "description": "Chat ID of the user in Telegram"
         },
         "shopeeAppId": {
           "type": "string",
@@ -25,6 +29,16 @@
         "layoutConfig": {
           "type": "string",
           "description": "JSON stringified layout configuration"
+        },
+        "subscriptionPlan": {
+          "type": "string",
+          "enum": ["free", "pro", "premium"],
+          "description": "User's subscription plan"
+        },
+        "subscriptionStatus": {
+          "type": "string",
+          "enum": ["active", "inactive", "past_due"],
+          "description": "Status of the subscription"
         },
         "createdAt": {
           "type": "string",
@@ -75,6 +89,54 @@
         }
       },
       "required": ["originalUrl", "affiliateUrl", "marketplace", "telegramUserId", "createdAt"]
+    },
+    "PublicStore": {
+      "title": "Public Store",
+      "description": "Publicly accessible store configuration",
+      "type": "object",
+      "properties": {
+        "storeSlug": {
+          "type": "string"
+        },
+        "storeName": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["storeSlug", "storeName", "ownerId", "createdAt"]
+    },
+    "PublicProduct": {
+      "title": "Public Product",
+      "description": "Publicly accessible product in a store",
+      "type": "object",
+      "properties": {
+        "productTitle": {
+          "type": "string"
+        },
+        "productImage": {
+          "type": "string"
+        },
+        "productPrice": {
+          "type": "number"
+        },
+        "affiliateUrl": {
+          "type": "string"
+        },
+        "marketplace": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["affiliateUrl", "marketplace", "createdAt"]
     }
   },
   "firestore": {
@@ -85,6 +147,14 @@
     "users/{userId}/linkHistory/{historyId}": {
       "schema": "LinkHistory",
       "description": "History of generated links for a specific user's bot"
+    },
+    "publicStores/{userId}": {
+      "schema": "PublicStore",
+      "description": "Public store configuration for a user"
+    },
+    "publicStores/{userId}/products/{productId}": {
+      "schema": "PublicProduct",
+      "description": "Public products for a user's store"
     }
   }
 }

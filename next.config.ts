@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
   serverActions: {
     allowedOrigins: ['localhost:3000', '*.run.app'],
   },
+  experimental: {
+    instrumentationHook: true,
+  },
   // Allow access to remote image placeholder.
   images: {
     remotePatterns: [

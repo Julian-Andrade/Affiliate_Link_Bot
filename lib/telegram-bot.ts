@@ -1,50 +1,74 @@
-import { NextResponse } from 'next/server';
 import { Telegraf } from 'telegraf';
-import { adminDb } from '../../../../../lib/firebase-admin';
-import { AffiliateService } from '../../../../../src/services/AffiliateService';
-import { extractUrls } from '../../../../../src/utils/url';
+import { adminDb } from './firebase-admin';
+import { AffiliateService } from '../src/services/AffiliateService';
+import { extractUrls } from '../src/utils/url';
 import { GoogleGenAI } from '@google/genai';
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> }
-) {
+const globalAny: any = globalThis;
+
+export async function startTelegramBot() {
   try {
-    const { userId } = await params;
-    const body = await request.json();
-
-    // Fetch user config from Firestore
-    const userDoc = await adminDb.collection('users').doc(userId).get();
-    if (!userDoc.exists) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+      console.warn('TELEGRAM_BOT_TOKEN is not set. Bot will not start.');
+      return { ok: false, error: 'Token not set' };
     }
 
-    const userData = userDoc.data();
-    if (!userData?.telegramBotToken) {
-      return NextResponse.json({ error: 'Bot token not configured' }, { status: 400 });
+    if (globalAny.activeTelegramBot) {
+      console.log('Stopping existing bot instance...');
+      try {
+        globalAny.activeTelegramBot.stop('Restarting');
+      } catch (e) {}
     }
 
-    // Initialize temporary bot instance
-    const bot = new Telegraf(userData.telegramBotToken);
-    
-    // Process message if it's a text message
-    if (body.message && body.message.text) {
-      const ctx = {
-        message: body.message,
-        from: body.message.from,
-        reply: (text: string, extra?: any) => bot.telegram.sendMessage(body.message.chat.id, text, extra),
-        replyWithPhoto: (photo: any, extra?: any) => bot.telegram.sendPhoto(body.message.chat.id, photo, extra),
-      };
+    const bot = new Telegraf(botToken);
+    globalAny.activeTelegramBot = bot;
 
+    // Remove webhook to allow long polling
+    await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+
+    bot.on('text', async (ctx) => {
+    try {
       const text = ctx.message.text;
+      const chatId = ctx.message.chat.id.toString();
       
-      if (text === '/start') {
-        await ctx.reply(
-          '👋 Olá! Eu sou o seu Bot Gerador de Links de Afiliado.\n\n' +
-          'Envie o link de um produto e eu retornarei o seu link de afiliado pronto para divulgação.\n\n' +
-          'Use /help para ver os marketplaces suportados.'
-        );
-        return NextResponse.json({ ok: true });
+      console.log(`Processing text: ${text} from chat: ${chatId}`);
+      
+      // Handle /start command
+      if (text.startsWith('/start')) {
+        const parts = text.split(' ');
+        if (parts.length > 1) {
+          const token = parts[1];
+          console.log(`Received /start with token: ${token}`);
+          try {
+            const usersSnapshot = await adminDb.collection('users').where('activationToken', '==', token).limit(1).get();
+            
+            if (usersSnapshot.empty) {
+              console.log('Token not found');
+              await ctx.reply('❌ Token de ativação inválido. Gere um novo token no painel.');
+              return;
+            }
+
+            const userDoc = usersSnapshot.docs[0];
+            await userDoc.ref.update({ telegramChatId: chatId });
+            console.log('User telegramChatId updated');
+            
+            await ctx.reply(
+              '✅ Bot ativado com sucesso!\n\n' +
+              'Agora você pode me enviar links de produtos e eu retornarei o seu link de afiliado pronto para divulgação.\n\n' +
+              'Use /help para ver os marketplaces suportados.'
+            );
+          } catch (dbError: any) {
+            console.error('Database error during /start:', dbError);
+            await ctx.reply('❌ Erro interno ao verificar o token. Tente novamente mais tarde.');
+          }
+        } else {
+          await ctx.reply(
+            '👋 Olá! Eu sou o seu Bot Gerador de Links de Afiliado.\n\n' +
+            'Para me ativar, acesse o painel do afiliado, copie o seu comando de ativação e cole aqui.'
+          );
+        }
+        return;
       }
 
       if (text === '/help') {
@@ -58,7 +82,25 @@ export async function POST(
           '⏳ Magalu (Em breve)',
           { parse_mode: 'Markdown' }
         );
-        return NextResponse.json({ ok: true });
+        return;
+      }
+
+      // Find user by chat ID
+      const usersSnapshot = await adminDb.collection('users').where('telegramChatId', '==', chatId).limit(1).get();
+      
+      if (usersSnapshot.empty) {
+        await ctx.reply('❌ Seu bot não está ativado. Acesse o painel e envie o comando de ativação.');
+        return;
+      }
+
+      const userDoc = usersSnapshot.docs[0];
+      const userData = userDoc.data();
+      const userId = userDoc.id;
+
+      // Check subscription status
+      if (userData.subscriptionStatus !== 'active') {
+        await ctx.reply('❌ Sua assinatura está inativa ou pendente. Acesse o painel para regularizar.');
+        return;
       }
 
       const extractedUrls = extractUrls(text);
@@ -83,7 +125,7 @@ export async function POST(
 
       if (urls.length === 0) {
         await ctx.reply('❌ Nenhuma URL válida encontrada ou suportada. Verifique a URL e tente novamente.');
-        return NextResponse.json({ ok: true });
+        return;
       }
 
       const processingMsg = await ctx.reply('⏳ Processando seu link...');
@@ -174,13 +216,19 @@ export async function POST(
       }
 
       try {
-        await bot.telegram.deleteMessage(body.message.chat.id, processingMsg.message_id);
+        await ctx.deleteMessage(processingMsg.message_id);
       } catch (e) {}
-    }
 
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error('Webhook error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    } catch (error) {
+      console.error('Error handling message:', error);
+    }
+  });
+
+    bot.launch();
+    console.log('Telegram bot started with long polling');
+    return { ok: true };
+  } catch (error: any) {
+    console.error('Failed to start Telegram bot:', error);
+    return { ok: false, error: error.message };
   }
 }

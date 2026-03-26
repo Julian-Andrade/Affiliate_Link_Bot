@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
+import { toast } from 'sonner';
 
 interface AuthContextType {
   user: User | null;
@@ -36,16 +37,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
+      toast.success('Login realizado com sucesso!');
     } catch (error) {
       console.error('Error signing in', error);
+      toast.error('Erro ao realizar login.');
     }
   };
 
   const logOut = async () => {
     try {
       await signOut(auth);
+      toast.success('Logout realizado com sucesso!');
     } catch (error) {
       console.error('Error signing out', error);
+      toast.error('Erro ao realizar logout.');
     }
   };
 

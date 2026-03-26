@@ -8,10 +8,13 @@ service cloud.firestore {
     // Document ID: {userId}
     // Fields:
     //   - email: string (required)
-    //   - telegramBotToken: string (optional)
+    //   - activationToken: string (optional)
+    //   - telegramChatId: string (optional)
     //   - shopeeAppId: string (optional)
     //   - shopeeAppSecret: string (optional)
     //   - layoutConfig: string (optional)
+    //   - subscriptionPlan: string (optional)
+    //   - subscriptionStatus: string (optional)
     //   - createdAt: timestamp (required, immutable)
     //   - updatedAt: timestamp (optional)
     //
@@ -66,13 +69,16 @@ service cloud.firestore {
     function isValidUser() {
       let data = request.resource.data;
       return hasRequiredFields(['email', 'createdAt']) &&
-             hasOnlyAllowedFields(['email', 'telegramBotToken', 'shopeeAppId', 'shopeeAppSecret', 'layoutConfig', 'createdAt', 'updatedAt']) &&
+             hasOnlyAllowedFields(['email', 'activationToken', 'telegramChatId', 'shopeeAppId', 'shopeeAppSecret', 'layoutConfig', 'subscriptionPlan', 'subscriptionStatus', 'createdAt', 'updatedAt']) &&
              isValidEmail(data.email) &&
              data.createdAt is timestamp &&
-             isValidOptionalString('telegramBotToken', 1, 255) &&
+             isValidOptionalString('activationToken', 1, 255) &&
+             isValidOptionalString('telegramChatId', 1, 255) &&
              isValidOptionalString('shopeeAppId', 1, 255) &&
              isValidOptionalString('shopeeAppSecret', 1, 255) &&
              isValidOptionalString('layoutConfig', 1, 10000) &&
+             (!( 'subscriptionPlan' in data ) || data.subscriptionPlan in ['free', 'pro', 'premium']) &&
+             (!( 'subscriptionStatus' in data ) || data.subscriptionStatus in ['active', 'inactive', 'past_due']) &&
              (!( 'updatedAt' in data ) || data.updatedAt is timestamp);
     }
 
@@ -92,13 +98,39 @@ service cloud.firestore {
              (!( 'productPrice' in data ) || data.productPrice is number);
     }
 
+    function isValidPublicStore() {
+      let data = request.resource.data;
+      return hasRequiredFields(['storeSlug', 'storeName', 'ownerId', 'createdAt']) &&
+             hasOnlyAllowedFields(['storeSlug', 'storeName', 'ownerId', 'createdAt']) &&
+             data.storeSlug is string && data.storeSlug.size() > 0 && data.storeSlug.size() < 100 &&
+             data.storeName is string && data.storeName.size() > 0 && data.storeName.size() < 100 &&
+             data.ownerId is string && data.ownerId == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidPublicProduct() {
+      let data = request.resource.data;
+      return hasRequiredFields(['affiliateUrl', 'marketplace', 'createdAt']) &&
+             hasOnlyAllowedFields(['productTitle', 'productImage', 'productPrice', 'affiliateUrl', 'marketplace', 'createdAt']) &&
+             data.affiliateUrl is string && data.affiliateUrl.size() > 0 && data.affiliateUrl.size() < 2000 &&
+             data.marketplace is string && data.marketplace.size() > 0 && data.marketplace.size() < 50 &&
+             data.createdAt is timestamp &&
+             isValidOptionalString('productTitle', 1, 500) &&
+             isValidOptionalString('productImage', 1, 2000) &&
+             (!( 'productPrice' in data ) || data.productPrice is number);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
     match /users/{userId} {
       allow read: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUser();
-      allow update: if isOwner(userId) && isValidUser() && request.resource.data.createdAt == resource.data.createdAt;
+      allow create: if isOwner(userId) && isValidUser() && 
+                    (!('subscriptionPlan' in request.resource.data) || request.resource.data.subscriptionPlan == 'free') &&
+                    (!('subscriptionStatus' in request.resource.data) || request.resource.data.subscriptionStatus == 'active');
+      allow update: if isOwner(userId) && isValidUser() && 
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriptionPlan', 'subscriptionStatus']);
       allow delete: if isOwner(userId);
 
       match /linkHistory/{historyId} {
@@ -107,6 +139,20 @@ service cloud.firestore {
         // but if the client creates them, they must be valid.
         allow create: if isOwner(userId) && isValidLinkHistory();
         allow update: if isOwner(userId) && isValidLinkHistory() && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    match /publicStores/{userId} {
+      allow read: if true;
+      allow create: if isOwner(userId) && isValidPublicStore();
+      allow update: if isOwner(userId) && isValidPublicStore() && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isOwner(userId);
+
+      match /products/{productId} {
+        allow read: if true;
+        allow create: if isOwner(userId) && isValidPublicProduct();
+        allow update: if isOwner(userId) && isValidPublicProduct() && request.resource.data.createdAt == resource.data.createdAt;
         allow delete: if isOwner(userId);
       }
     }

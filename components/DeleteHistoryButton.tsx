@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { db } from '../lib/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from './AuthProvider';
+import { toast } from 'sonner';
 
 export default function DeleteHistoryButton({ id }: { id: string }) {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -16,8 +17,16 @@ export default function DeleteHistoryButton({ id }: { id: string }) {
     setIsDeleting(true);
     try {
       await deleteDoc(doc(db, 'users', user.uid, 'linkHistory', id));
+      // Also attempt to delete from public store
+      try {
+        await deleteDoc(doc(db, 'publicStores', user.uid, 'products', id));
+      } catch (e) {
+        // Ignore if it doesn't exist or fails
+      }
+      toast.success('Item excluído com sucesso!');
     } catch (error: any) {
       console.error(error.message || 'Erro ao excluir item');
+      toast.error('Erro ao excluir item.');
     }
     setIsDeleting(false);
     setShowConfirm(false);

@@ -22,6 +22,7 @@ import { GripVertical, Save, Info, Check } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from './AuthProvider';
+import { toast } from 'sonner';
 
 export type BlockType = 'title' | 'customCta' | 'customText' | 'promoPrice' | 'originalPrice' | 'affiliateLink' | 'coupon' | 'promoWarning' | 'salesCount';
 
@@ -67,19 +68,19 @@ function SortableItem({ block, onChange }: SortableItemProps) {
   const hasInput = ['customCta', 'customText', 'coupon'].includes(block.type);
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm mb-2">
-      <div {...attributes} {...listeners} className="cursor-grab text-gray-400 hover:text-gray-600">
+    <div ref={setNodeRef} style={style} className="flex items-center gap-4 bg-[#f5f5f5] p-4 rounded-xl mb-3">
+      <div {...attributes} {...listeners} className="cursor-grab text-[#9e9e9e] hover:text-[#1a1a1a] transition-colors">
         <GripVertical className="w-5 h-5" />
       </div>
       
-      <div className="flex-1 flex flex-col gap-2">
+      <div className="flex-1 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700">{block.label}</span>
+          <span className="text-sm font-medium text-[#1a1a1a]">{block.label}</span>
           <input
             type="checkbox"
             checked={block.enabled}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(block.id, { enabled: e.target.checked })}
-            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            className="w-4 h-4 text-[#1a1a1a] rounded border-gray-300 focus:ring-[#1a1a1a]"
           />
         </div>
         
@@ -89,7 +90,7 @@ function SortableItem({ block, onChange }: SortableItemProps) {
             value={block.value || ''}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(block.id, { value: e.target.value })}
             placeholder="Digite aqui..."
-            className="w-full text-sm p-2 border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            className="w-full text-sm p-3 bg-white border-none rounded-lg focus:ring-2 focus:ring-[#1a1a1a] outline-none shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
           />
         )}
       </div>
@@ -100,7 +101,6 @@ function SortableItem({ block, onChange }: SortableItemProps) {
 export default function LayoutBuilder({ initialLayout }: { initialLayout: LayoutBlock[] }) {
   const [blocks, setBlocks] = useState<LayoutBlock[]>(initialLayout.length > 0 ? initialLayout : defaultLayout);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState('');
   const [isMounted, setIsMounted] = useState(false);
   const { user } = useAuth();
 
@@ -142,17 +142,15 @@ export default function LayoutBuilder({ initialLayout }: { initialLayout: Layout
   const handleSave = async () => {
     if (!user) return;
     setIsSaving(true);
-    setSaveMessage('');
     try {
       await setDoc(doc(db, 'users', user.uid), {
         layoutConfig: JSON.stringify(blocks),
         updatedAt: serverTimestamp(),
       }, { merge: true });
-      setSaveMessage('Layout salvo com sucesso!');
-      setTimeout(() => setSaveMessage(''), 3000);
+      toast.success('Layout salvo com sucesso!');
     } catch (error) {
       console.error(error);
-      setSaveMessage('Erro ao salvar layout.');
+      toast.error('Erro ao salvar layout.');
     } finally {
       setIsSaving(false);
     }
@@ -187,40 +185,32 @@ export default function LayoutBuilder({ initialLayout }: { initialLayout: Layout
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="bg-white rounded-[24px] shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
+      <div className="p-8 border-b border-[#f5f5f5] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Definição de Layout</h2>
-          <p className="text-sm text-gray-500 mt-1">Personalize as informações que aparecerão nas mensagens geradas.</p>
+          <h2 className="text-xl font-light text-[#1a1a1a]">Definição de Layout</h2>
+          <p className="text-sm text-[#9e9e9e] mt-1">Personalize as informações que aparecerão nas mensagens geradas.</p>
         </div>
         <div className="flex flex-col items-end gap-2">
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 bg-[#1a1a1a] hover:bg-[#333333] text-white font-medium py-3 px-6 rounded-xl transition-colors disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
             {isSaving ? 'Salvando...' : 'Salvar Layout'}
           </button>
-          {saveMessage && (
-            <span className={`text-sm ${saveMessage.includes('Erro') ? 'text-red-600' : 'text-green-600'}`}>
-              {saveMessage}
-            </span>
-          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2">
         {/* Editor */}
-        <div className="p-6 bg-gray-50/50 border-r border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        <div className="p-8 bg-white border-r border-[#f5f5f5]">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2 text-xs font-medium text-[#9e9e9e] uppercase tracking-wider">
               <span>INFORMAÇÕES DO CARD</span>
               <Info className="w-4 h-4" />
             </div>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-200 px-2 py-1 rounded-full">
-              REORDENAR
-            </span>
           </div>
 
           {isMounted ? (
@@ -244,18 +234,18 @@ export default function LayoutBuilder({ initialLayout }: { initialLayout: Layout
           ) : (
             <div className="space-y-1">
               {blocks.map((block) => (
-                <div key={block.id} className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm mb-2 opacity-50">
-                  <div className="text-gray-400">
+                <div key={block.id} className="flex items-center gap-4 bg-[#f5f5f5] p-4 rounded-xl mb-3 opacity-50">
+                  <div className="text-[#9e9e9e]">
                     <GripVertical className="w-5 h-5" />
                   </div>
                   <div className="flex-1 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">{block.label}</span>
+                      <span className="text-sm font-medium text-[#1a1a1a]">{block.label}</span>
                       <input
                         type="checkbox"
                         checked={block.enabled}
                         readOnly
-                        className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                        className="w-4 h-4 text-[#1a1a1a] rounded border-gray-300"
                       />
                     </div>
                   </div>
@@ -266,20 +256,20 @@ export default function LayoutBuilder({ initialLayout }: { initialLayout: Layout
         </div>
 
         {/* Preview */}
-        <div className="p-6 bg-gray-100 flex flex-col items-center">
-          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-6">
+        <div className="p-8 bg-[#fafafa] flex flex-col items-center">
+          <div className="text-xs font-medium text-[#9e9e9e] uppercase tracking-wider mb-6">
             PREVIEW
           </div>
           
-          <div className="w-full max-w-sm bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
-            <div className="w-full aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden border border-[#f5f5f5]">
+            <div className="w-full aspect-square bg-[#f5f5f5] flex items-center justify-center overflow-hidden">
               <img 
                 src="https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&q=80&w=400&h=400" 
                 alt="Product Illustration" 
                 className="w-full h-full object-cover"
               />
             </div>
-            <div className="p-4 space-y-2 text-sm">
+            <div className="p-6 space-y-3 text-[15px] leading-relaxed">
               {renderPreview()}
             </div>
           </div>
