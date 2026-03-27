@@ -28,9 +28,9 @@ export class AffiliateService {
       
       const fullName = [userInfo.firstName, userInfo.lastName].filter(Boolean).join(' ');
 
-      // Salva o histórico de forma assíncrona (fire and forget)
+      // Salva o histórico (precisa de await em ambiente serverless)
       if (userId) {
-        this.historyService.saveHistory(userId, {
+        await this.historyService.saveHistory(userId, {
           originalUrl: url,
           affiliateUrl: productInfo.affiliateUrl,
           marketplace: provider.getMarketplaceName(),

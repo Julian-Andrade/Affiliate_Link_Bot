@@ -16,9 +16,14 @@ export class HistoryService {
     try {
       const timestamp = FieldValue.serverTimestamp();
       
+      // Remove undefined values to avoid Firestore errors
+      const cleanData = Object.fromEntries(
+        Object.entries(data).filter(([_, v]) => v !== undefined)
+      );
+      
       // Save to private linkHistory
       const historyRef = await adminDb.collection('users').doc(userId).collection('linkHistory').add({
-        ...data,
+        ...cleanData,
         createdAt: timestamp,
       });
 

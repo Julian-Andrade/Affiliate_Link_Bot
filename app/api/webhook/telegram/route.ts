@@ -115,7 +115,8 @@ export async function POST(request: Request) {
       const userId = userDoc.id;
 
       // Check subscription status
-      if (userData.subscriptionStatus !== 'active') {
+      const subscriptionStatus = userData.subscriptionStatus || 'active';
+      if (subscriptionStatus !== 'active') {
         await ctx.reply('❌ Sua assinatura está inativa ou pendente. Acesse o painel para regularizar.');
         return NextResponse.json({ ok: true });
       }
